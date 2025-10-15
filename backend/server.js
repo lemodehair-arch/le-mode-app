@@ -9,7 +9,10 @@ const { Pool } = pkg;
 const app = express();
 app.use(cors());
 app.use(express.json({ limit: '5mb' }));
-const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: { rejectUnauthorized: false }
+});
 const ADMIN_TOKEN = process.env.ADMIN_TOKEN || 'devtoken';
 const SALON_ID = '00000000-0000-0000-0000-000000000001';
 function requireAdmin(req,res,next){ const auth=req.headers.authorization||''; const token=auth.startsWith('Bearer ')?auth.slice(7):''; if(token!==ADMIN_TOKEN) return res.status(401).json({error:'unauthorized'}); next(); }
