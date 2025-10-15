@@ -1,0 +1,81 @@
+<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Le Mode — Prenota</title>
+<link rel="manifest" href="./manifest.webmanifest">
+<meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black">
+<style>
+:root{--lm-bg:#0F1115;--lm-card:#151821;--lm-ink:#f7f7f9;--lm-accent:#00D4C7;--lm-accent2:#8A63F6;}
+*{box-sizing:border-box}body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,sans-serif;margin:0;background:var(--lm-bg);color:var(--lm-ink)}
+header{background:linear-gradient(90deg,var(--lm-accent),var(--lm-accent2));color:#fff;padding:16px 20px}
+.container{max-width:1100px;margin:20px auto;padding:0 16px}.card{background:var(--lm-card);border-radius:16px;padding:16px;box-shadow:0 6px 20px rgba(0,0,0,.25)}
+.grid{display:grid;gap:12px}.col{display:flex;gap:10px;align-items:center}
+input,select,button,textarea{padding:10px;border:1px solid #2a2d37;border-radius:10px;background:#0f1218;color:#f7f7f9}
+button{background:var(--lm-accent);color:#0b0d12;border:none;padding:10px 12px;font-weight:700;cursor:pointer}button:hover{filter:brightness(1.05)}
+.pill{border-radius:10px;padding:2px 8px;font-size:12px;background:var(--lm-accent);color:#0b0d12}
+.week{display:flex;flex-direction:column;gap:6px}.row{display:grid;grid-template-columns:120px repeat(4,1fr);gap:6px}
+.cell{background:#0f1218;border:1px dashed #2a2d37;border-radius:10px;min-height:46px;padding:6px}.cell.head{background:#111;color:#fff;border:none;text-align:center;font-weight:700}.cell.time{background:#0c0e13;text-align:center}
+.chip{color:#fff;border-radius:10px;padding:6px;font-size:14px;box-shadow:0 2px 6px rgba(0,0,0,.15)}
+@media(max-width:900px){.row{grid-template-columns:80px repeat(4,1fr)}}
+</style>
+</head><body>
+<header><div style='display:flex;align-items:center;gap:10px'><div style='width:28px;height:28px;border-radius:8px;background:var(--lm-ink);color:#0b0d12;display:flex;align-items:center;justify-content:center;font-weight:800'>LM</div><div><div style='font-weight:800;letter-spacing:.3px'>Le Mode · Booking</div><div style='font-size:12px;opacity:.85'>Hair & Beauty</div></div></div></header>
+<div class="container">
+  <div class="card">
+    <strong>Impostazioni</strong>
+    <div class="grid">
+      <div><label>API URL</label><input id="apiurl" placeholder="https://le-mode-backend.onrender.com/api"></div>
+      <div style="align-self:end"><button onclick="setAPI(document.getElementById('apiurl').value||API)">Salva API</button></div>
+    </div>
+    <div style="font-size:12px;opacity:.8;margin-top:6px">Attuale: <code id="apiNow"></code></div>
+    <div style='background:#1c2030;padding:8px;border-radius:10px;margin-top:10px'>Su iPhone: Condividi → <b>Aggiungi alla Home</b>.</div>
+  </div>
+
+  <div class="card">
+    <strong>Prenota un servizio</strong>
+    <div class="grid">
+      <div class="col"><label>Servizio</label><select id="service"></select></div>
+      <div class="col"><label>Operatore</label><select id="staff"></select></div>
+      <div class="col"><label>Data</label><input type="date" id="date"></div>
+      <div><button id="load">Cerca orari</button></div>
+      <div id="slots"></div>
+    </div>
+    <hr style="border-color:#2a2d37;margin:14px 0">
+    <div class="grid">
+      <div class="col"><input id="name" placeholder="Nome e Cognome"><input id="phone" placeholder="Telefono"><input id="email" placeholder="Email (opz.)"></div>
+      <div><button id="book">Prenota</button></div>
+    </div>
+    <div id="out" style="margin-top:8px"></div>
+  </div>
+</div>
+
+<script>
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').catch(()=>{});
+let API = localStorage.getItem('API_URL') || 'http://localhost:4000/api';
+function setAPI(u){ localStorage.setItem('API_URL', u); API=u; document.getElementById('apiNow').innerText = API; alert('API aggiornata'); }
+document.getElementById('apiNow').innerText = API;
+const serviceSel = document.getElementById('service'); const staffSel = document.getElementById('staff');
+function fill(sel, items){ sel.innerHTML = items.map(i=>`<option value="${i.id}">${i.name}</option>`).join(''); }
+async function init(){
+  const [sv, st] = await Promise.all([fetch(API+'/services'), fetch(API+'/staff')]).then(P=>Promise.all(P.map(r=>r.json())));
+  fill(serviceSel, sv); fill(staffSel, st); document.getElementById('date').valueAsDate = new Date();
+}
+document.getElementById('load').onclick = async ()=>{
+  const d = document.getElementById('date').value;
+  const r = await fetch(API+'/availability', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({
+    serviceId: serviceSel.value, staffId: staffSel.value,
+    dateStart: new Date(d+'T00:00:00').toISOString(), dateEnd: new Date(d+'T23:59:00').toISOString()
+  }) });
+  const data = await r.json();
+  document.getElementById('slots').innerHTML = (data.slots||[]).map(s=>`<button class="tabbtn" onclick="selectSlot('${s.start}','${s.end}')">${new Date(s.start).toLocaleTimeString('it-IT',{hour:'2-digit',minute:'2-digit'})}</button>`).join(' ') || '<em>Nessuna disponibilità</em>';
+};
+let selected = null; function selectSlot(s,e){ selected = s; document.getElementById('out').innerText = 'Orario selezionato: '+ new Date(s).toLocaleTimeString('it-IT',{hour:'2-digit',minute:'2-digit'}); }
+document.getElementById('book').onclick = async ()=>{
+  const name = document.getElementById('name').value.trim(); if(!name) return alert('Inserisci il nome');
+  const phone = document.getElementById('phone').value.trim(); const email = document.getElementById('email').value.trim();
+  const c = await fetch(API+'/clients', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ name, phone, email, marketingConsent:true }) }).then(r=>r.json());
+  if(!selected) return alert('Seleziona un orario');
+  await fetch(API+'/bookings', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ clientId: c.id, staffId: staffSel.value, serviceId: serviceSel.value, start: selected }) });
+  document.getElementById('out').innerHTML = '<span class="pill">Prenotazione creata</span>';
+};
+init().catch(()=>alert('Configura prima API URL'));
+</script>
+</body></html>

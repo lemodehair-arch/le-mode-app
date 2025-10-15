@@ -1,0 +1,159 @@
+<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Le Mode — Back-office</title>
+<link rel="manifest" href="./manifest.webmanifest">
+<meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black">
+<style>
+:root{--lm-bg:#0F1115;--lm-card:#151821;--lm-ink:#f7f7f9;--lm-accent:#00D4C7;--lm-accent2:#8A63F6;}
+*{box-sizing:border-box}body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,sans-serif;margin:0;background:var(--lm-bg);color:var(--lm-ink)}
+header{background:linear-gradient(90deg,var(--lm-accent),var(--lm-accent2));color:#fff;padding:16px 20px}
+.container{max-width:1100px;margin:20px auto;padding:0 16px}.card{background:var(--lm-card);border-radius:16px;padding:16px;box-shadow:0 6px 20px rgba(0,0,0,.25)}
+.grid{display:grid;gap:12px}.col{display:flex;gap:10px;align-items:center}
+input,select,button,textarea{padding:10px;border:1px solid #2a2d37;border-radius:10px;background:#0f1218;color:#f7f7f9}
+button{background:var(--lm-accent);color:#0b0d12;border:none;padding:10px 12px;font-weight:700;cursor:pointer}button:hover{filter:brightness(1.05)}
+.pill{border-radius:10px;padding:2px 8px;font-size:12px;background:var(--lm-accent);color:#0b0d12}
+.week{display:flex;flex-direction:column;gap:6px}.row{display:grid;grid-template-columns:120px repeat(4,1fr);gap:6px}
+.cell{background:#0f1218;border:1px dashed #2a2d37;border-radius:10px;min-height:46px;padding:6px}.cell.head{background:#111;color:#fff;border:none;text-align:center;font-weight:700}.cell.time{background:#0c0e13;text-align:center}
+.chip{color:#fff;border-radius:10px;padding:6px;font-size:14px;box-shadow:0 2px 6px rgba(0,0,0,.15)}
+@media(max-width:900px){.row{grid-template-columns:80px repeat(4,1fr)}}
+</style>
+</head><body>
+<header><div style='display:flex;align-items:center;gap:10px'><div style='width:28px;height:28px;border-radius:8px;background:var(--lm-ink);color:#0b0d12;display:flex;align-items:center;justify-content:center;font-weight:800'>LM</div><div><div style='font-weight:800;letter-spacing:.3px'>Le Mode · Booking</div><div style='font-size:12px;opacity:.85'>Hair & Beauty</div></div></div></header>
+<div class="container">
+  <div class="card" id="navtabs" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">
+    <button class="tabbtn" onclick="showTab('agenda')">Agenda</button>
+    <button class="tabbtn" onclick="showTab('clienti')">Clienti</button>
+    <button class="tabbtn" onclick="showTab('orari')">Orari & Ferie</button>
+    <button class="tabbtn" onclick="showTab('report')">Report</button>
+    <button class="tabbtn" onclick="showTab('listini')">Listini & Pagamenti</button>
+    <button class="tabbtn" onclick="showTab('staff')">Staff</button>
+  </div>
+  <div class="card">
+    <strong>Impostazioni</strong>
+    <div class="col" style="gap:8px;flex-wrap:wrap">
+      <input id="apiurl" placeholder="https://le-mode-backend.onrender.com/api" style="flex:1">
+      <input id="admintoken" placeholder="Token amministratore" style="flex:1">
+      <button onclick="setAPI(document.getElementById('apiurl').value)">Salva API</button>
+      <button onclick="localStorage.setItem('ADMIN_TOKEN', document.getElementById('admintoken').value); alert('Token salvato')">Salva Token</button>
+    </div>
+    <div style="font-size:12px;opacity:.8;margin-top:6px">Attuale API: <code id="apiNow"></code></div>
+  </div>
+
+  <div id="tab-agenda">
+    <div class="card">
+      <h3>Agenda</h3>
+      <div class="col" style="margin-bottom:8px">
+        <select id="viewmode"><option value="week" selected>Settimana</option><option value="day">Giorno</option></select>
+        <input id="datepick" type="date"><select id="stafffilter"><option value="">Tutti gli operatori</option></select>
+        <button id="refresh">Aggiorna</button>
+      </div>
+      <div id="weekgrid" class="week"></div>
+    </div>
+  </div>
+
+  <div id="tab-clienti" style="display:none">
+    <div class="card"><h3>Clienti</h3><table id="clients" style="width:100%"><thead><tr><th>Nome</th><th>Contatti</th></tr></thead><tbody></tbody></table></div>
+  </div>
+
+  <div id="tab-orari" style="display:none">
+    <div class="card">
+      <h3>Orari Staff</h3>
+      <div class="col"><select id="schedStaff"></select><select id="schedWeekday"><option value="1">Lun</option><option value="2">Mar</option><option value="3">Mer</option><option value="4">Gio</option><option value="5">Ven</option><option value="6">Sab</option><option value="7">Dom</option></select><input id="schedStart" type="time" value="09:00"><input id="schedEnd" type="time" value="18:00"><button id="addSched">Aggiungi</button></div>
+      <div id="schedList" style="margin-top:8px"></div>
+    </div>
+    <div class="card">
+      <h3>Ferie/Permessi</h3>
+      <div class="col"><select id="holStaff"></select><input id="holFrom" type="date"><input id="holTo" type="date"><input id="holReason" placeholder="Motivo"><button id="addHoliday">Aggiungi</button></div>
+      <div id="holList" style="margin-top:8px"></div>
+    </div>
+  </div>
+
+  <div id="tab-report" style="display:none">
+    <div class="card"><h3>Report</h3><div class="col"><input id="repFrom" type="date"><input id="repTo" type="date"><button id="runReport">Genera</button></div><div id="repOut" style="margin-top:8px"></div></div>
+  </div>
+
+  <div id="tab-listini" style="display:none">
+    <div class="card">
+      <h3>Depositi per Servizio</h3>
+      <div class="col"><select id="depService"></select><label><input type="checkbox" id="depRequired"> Richiedi acconto</label><input id="depAmount" type="number" min="0" step="1" placeholder="€ acconto"><button id="depSave">Salva</button></div>
+    </div>
+    <div class="card">
+      <h3>Prezzi per Operatore</h3>
+      <div class="col"><select id="spService"></select><select id="spStaff"></select><input id="spPrice" type="number" min="0" step="1" placeholder="€ prezzo"><button id="spAdd">Aggiungi</button></div>
+      <div id="spList" style="margin-top:8px"></div>
+    </div>
+    <div class="card">
+      <h3>Export & Notifiche</h3>
+      <div class="col"><a id="expClients" class="tabbtn" href="#" download>Esporta Clienti (CSV)</a><a id="expBookings" class="tabbtn" href="#" download>Esporta Prenotazioni (CSV)</a></div>
+      <div class="col"><input id="notifBookingId" placeholder="Booking ID"><select id="notifType"><option value="confirm_email">Conferma Email</option><option value="reminder_email">Reminder Email</option><option value="noshow_email">No-show Email</option></select><button id="sendNotif">Invia</button></div>
+    </div>
+  </div>
+
+  <div id="tab-staff" style="display:none">
+    <div class="card">
+      <h3>Gestione Staff</h3>
+      <div class="col"><input id="stName" placeholder="Nome operatore"><input id="stRole" placeholder="Ruolo (es. Hair Stylist)"><button id="stAdd">Aggiungi</button></div>
+      <div id="stList" style="margin-top:8px"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').catch(()=>{});
+let API = localStorage.getItem('API_URL') || 'http://localhost:4000/api';
+function setAPI(u){ localStorage.setItem('API_URL', u); API=u; document.getElementById('apiNow').innerText = API; alert('API aggiornata'); }
+document.getElementById('apiNow').innerText = API;
+const tokenKey='ADMIN_TOKEN'; async function authHeader(){ return { 'Authorization':'Bearer '+(localStorage.getItem(tokenKey)||'') }; } async function ensureToken(){ if(!localStorage.getItem(tokenKey)){ const t=prompt('Token amministratore'); if(!t) return false; localStorage.setItem(tokenKey,t);} return true; }
+function showTab(n){ ['agenda','clienti','orari','report','listini','staff'].forEach(x=>document.getElementById('tab-'+x).style.display=(x===n?'block':'none')); }
+
+function cell(txt, cls=''){ const d=document.createElement('div'); d.className='cell '+cls; d.innerHTML=txt; return d; }
+function statusColor(st){ return st==='confirmed' ? '#10b981' : st==='hold' ? '#f59e0b' : st==='no_show' ? '#ef4444' : '#111'; }
+
+async function initAdmin(){ if(!await ensureToken()) return;
+  const hdrs = await authHeader();
+  const staff = await fetch(API+'/staff', { headers: hdrs }).then(r=>r.json());
+  const staffSel = document.getElementById('stafffilter'); staff.forEach(s=>{ const o=document.createElement('option'); o.value=s.id; o.textContent=s.name; staffSel.appendChild(o); });
+  document.getElementById('datepick').valueAsDate=new Date();
+  document.getElementById('refresh').onclick=loadAgenda; document.getElementById('viewmode').onchange=loadAgenda; staffSel.onchange=loadAgenda; document.getElementById('datepick').onchange=loadAgenda;
+  loadAgenda(); loadClientsList(); initListini(); loadStaffManage();
+}
+
+async function loadAgenda(){
+  const hdrs = await authHeader(); const mode=document.getElementById('viewmode').value; const d=new Date(document.getElementById('datepick').value);
+  const monday=new Date(d); const day=(d.getDay()||7); monday.setDate(d.getDate()-day+1);
+  const data = await fetch(API + (mode==='week'? '/bookings/week?start='+monday.toISOString() : '/bookings?date='+d.toISOString().slice(0,10)), { headers: hdrs }).then(r=>r.json());
+  const grid=document.getElementById('weekgrid'); grid.innerHTML='';
+  const hours=Array.from({length:10},(_,i)=>i+9); const staff=await fetch(API+'/staff').then(r=>r.json());
+  const shown=(document.getElementById('stafffilter').value? staff.filter(s=>s.id===document.getElementById('stafffilter').value):staff);
+  const head=document.createElement('div'); head.className='row head'; head.innerHTML='<div class="cell head">Ora</div>'+shown.map(s=>`<div class="cell head">${s.name}</div>`).join(''); grid.appendChild(head);
+  hours.forEach(h=>{ const row=document.createElement('div'); row.className='row'; row.appendChild(cell(''+h+':00','time')); shown.forEach(s=>{ const c=cell('','dropzone'); c.dataset.hour=h; c.dataset.staff=s.id; c.ondragover=e=>e.preventDefault(); c.ondrop=e=>{ e.preventDefault(); const id=e.dataTransfer.getData('text/plain'); moveBooking(id,s.id,h); }; row.appendChild(c); }); grid.appendChild(row); });
+  data.forEach(b=>{ const start=new Date(b.start); const h=start.getHours(); const dz=grid.querySelector(`.cell.dropzone[data-hour="${h}"][data-staff="${b.staff_id}"]`); if(dz){ const chip=document.createElement('div'); chip.className='chip'; chip.draggable=true; chip.ondragstart=e=>e.dataTransfer.setData('text/plain', b.id); chip.style.background=statusColor(b.status); chip.innerHTML = `<strong>${b.client_name||'Cliente'}</strong><div style="font-size:12px">${b.service_name||'Servizio'} — ${h}:${String(start.getMinutes()).padStart(2,'0')}</div>`; dz.appendChild(chip); }});
+}
+async function moveBooking(id, staffId, hour){ const hdrs=Object.assign({'Content-Type':'application/json'}, await authHeader()); const d=new Date(document.getElementById('datepick').value); d.setHours(hour,0,0,0); const r=await fetch(API+'/bookings/'+id, { method:'PATCH', headers:hdrs, body: JSON.stringify({ staffId, start:d.toISOString() }) }); if(r.ok) loadAgenda(); else alert('Errore spostamento'); }
+async function loadClientsList(){ const hdrs=await authHeader(); const list=await fetch(API+'/clients',{ headers: hdrs }).then(r=>r.json()); const tb=document.querySelector('#clients tbody'); tb.innerHTML=list.map(c=>`<tr><td>${c.name}</td><td>${c.phone||''}<br>${c.email||''}</td></tr>`).join(''); }
+
+async function initListini(){ const hdrs=await authHeader(); const [sv,st]=await Promise.all([fetch(API+'/services',{headers:hdrs}).then(r=>r.json()), fetch(API+'/staff',{headers:hdrs}).then(r=>r.json())]);
+  document.getElementById('depService').innerHTML = sv.map(s=>`<option value="${s.id}" data-dep="${s.requires_deposit}" data-amt="${s.deposit_eur||''}">${s.name}</option>`).join('');
+  document.getElementById('spService').innerHTML = sv.map(s=>`<option value="${s.id}">${s.name}</option>`).join('');
+  document.getElementById('spStaff').innerHTML = st.map(x=>`<option value="${x.id}">${x.name}</option>`).join('');
+  document.getElementById('expClients').href = API + '/export/clients.csv'; document.getElementById('expBookings').href = API + '/export/bookings.csv';
+  const depSel=document.getElementById('depService'); function refresh(){ const opt=depSel.options[depSel.selectedIndex]; document.getElementById('depRequired').checked = opt.getAttribute('data-dep')==='true'; document.getElementById('depAmount').value = opt.getAttribute('data-amt')||''; } depSel.onchange=refresh; refresh();
+  document.getElementById('depSave').onclick = async ()=>{ const id=depSel.value; const requires=document.getElementById('depRequired').checked; const amt=parseFloat(document.getElementById('depAmount').value||'0'); const hdr=Object.assign({'Content-Type':'application/json'}, await authHeader()); await fetch(API+'/services/'+id+'/deposit',{ method:'PATCH', headers:hdr, body: JSON.stringify({ requires_deposit: requires, deposit_eur: requires?amt:null }) }); alert('Salvato'); };
+  document.getElementById('sendNotif').onclick = async ()=>{ const body={ type: document.getElementById('notifType').value, bookingId: document.getElementById('notifBookingId').value }; const hdr=Object.assign({'Content-Type':'application/json'}, await authHeader()); const r=await fetch(API+'/notify',{ method:'POST', headers:hdr, body: JSON.stringify(body) }); alert(r.ok?'Inviato':'Errore'); };
+}
+
+async function loadStaffManage(){ const hdrs=await authHeader(); const list=await fetch(API+'/staff',{ headers: hdrs }).then(r=>r.json()); const box=document.getElementById('stList');
+  box.innerHTML = list.map(s=>`<div class="row" style="grid-template-columns:1fr 1fr 1fr auto auto">
+    <div><input value="${s.name}" id="n_${s.id}" style="width:100%"></div>
+    <div><input value="${s.role||''}" id="r_${s.id}" style="width:100%"></div>
+    <div>${s.active ? '<span class="pill">Attivo</span>' : '<span class="pill" style="background:#999">Inattivo</span>'}</div>
+    <button onclick="saveStaff('${s.id}')">Salva</button>
+    <button onclick="toggleStaff('${s.id}')">Attiva/Disattiva</button>
+  </div>`).join('') || '<em>Nessun operatore</em>';
+}
+async function saveStaff(id){ const hdr=Object.assign({'Content-Type':'application/json'}, await authHeader()); const body={ name: document.getElementById('n_'+id).value, role: document.getElementById('r_'+id).value }; await fetch(API+'/staff/'+id,{ method:'PATCH', headers:hdr, body: JSON.stringify(body) }); loadStaffManage(); }
+async function toggleStaff(id){ const hdrs=await authHeader(); const list=await fetch(API+'/staff',{ headers: hdrs }).then(r=>r.json()); const me=list.find(x=>x.id===id); if(!me) return; const hdr=Object.assign({'Content-Type':'application/json'}, await authHeader()); await fetch(API+'/staff/'+id,{ method:'PATCH', headers:hdr, body: JSON.stringify({ active: !me.active }) }); loadStaffManage(); }
+document.getElementById('stAdd').onclick = async ()=>{ const name=document.getElementById('stName').value.trim(); const role=document.getElementById('stRole').value.trim()||'Staff'; if(!name) return alert('Inserisci un nome'); const hdr=Object.assign({'Content-Type':'application/json'}, await authHeader()); await fetch(API+'/staff',{ method:'POST', headers:hdr, body: JSON.stringify({ name, role }) }); document.getElementById('stName').value=''; document.getElementById('stRole').value=''; loadStaffManage(); };
+
+initAdmin();
+</script>
+</body></html>
