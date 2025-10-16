@@ -47,7 +47,31 @@ app.get("/api/services", async (req, res) => {
 // ============================
 // ENDPOINT: STAFF
 // ============================
+// 🔹 Endpoint staff (robusto: tenta con active=TRUE e, se fallisce, fa fallback)
 app.get("/api/staff", async (req, res) => {
+  try {
+    // Primo tentativo: colonna "active" presente
+    try {
+      const { rows } = await pool.query(
+        "SELECT id, name, role, COALESCE(active, TRUE) AS active FROM staff WHERE COALESCE(active, TRUE)=TRUE ORDER BY name"
+      );
+      return res.json(rows);
+    } catch (inner) {
+      console.warn("WARN /api/staff: fallback senza filtro active →", inner?.message || inner);
+      // Fallback: nessun filtro (se la colonna non esiste o dà problemi)
+      const { rows } = await pool.query(
+        "SELECT id, name, role FROM staff ORDER BY name"
+      );
+      return res.json(rows);
+    }
+  } catch (e) {
+    console.error("ERR /api/staff", e);
+    return res.status(500).json({
+      error: "staff_failed",
+      message: String(e?.message || e),
+    });
+  }
+});
   try {
     const { rows } = await pool.query(
       "SELECT * FROM staff WHERE active=TRUE ORDER BY name"
@@ -60,8 +84,23 @@ app.get("/api/staff", async (req, res) => {
       .json({ error: "staff_failed", message: String(e?.message || e) });
   }
 });
-
-// ============================
+// 🔹 Debug staff: mostra le colonne presenti e il primo record
+app.get("/api/debug/staff", async (req, res) => {
+  try {
+    const info = await pool.query(
+      "SELECT column_name, data_type FROM information_schema.columns WHERE table_name='staff' ORDER BY ordinal_position"
+    );
+    const sample = await pool.query("SELECT * FROM staff LIMIT 1");
+    res.json({
+      ok: true,
+      columns: info.rows,
+      sample: sample.rows,
+    });
+  } catch (e) {
+    console.error("ERR /api/debug/staff", e);
+    res.status(500).json({ ok: false, error: String(e?.message || e) });
+  }
+});// ============================
 // ENDPOINT: DEBUG CONNESSIONE DB
 // ============================
 app.get("/api/debug/db", async (req, res) => {
